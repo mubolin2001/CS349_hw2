@@ -87,8 +87,52 @@ def knn(train,query,metri, K = 5, n_comp = 50):
 # labels should be ignored in the training set
 # metric is a string specifying either "euclidean" or "cosim".  
 # All hyper-parameters should be hard-coded in the algorithm.
-def kmeans(train,query,metric):
-    return(labels)
+# def kmeans(train,query,metric):
+#     return(labels)
+
+def kmeans(train, query, metric, num_clusters=5, max_iterations=100):
+    print("funciton start")
+    # Select distance function based on metric
+    if metric.lower() == "euclidean":
+        dist_func = euclidean
+    else:
+        dist_func = cosim
+
+    # Initialize centroids randomly from the training data
+    train_data = np.array([list(map(int, t[1])) for t in train])
+    centroids = train_data[np.random.choice(len(train_data), num_clusters, replace=False)]
+    
+    for _ in range(max_iterations):
+        # Step 1: Assign each query point to the nearest centroid
+        clusters = [[] for _ in range(num_clusters)]
+        for point in train_data:
+            distances = [dist_func(point, centroid) for centroid in centroids]
+            nearest_centroid_idx = np.argmin(distances)
+            clusters[nearest_centroid_idx].append(point)
+        
+        # Step 2: Update centroids by calculating the mean of assigned points
+        new_centroids = []
+        for cluster in clusters:
+            if cluster:  # Avoid empty clusters
+                new_centroid = np.mean(cluster, axis=0)
+                new_centroids.append(new_centroid)
+            else:
+                new_centroids.append(centroids[np.random.choice(len(centroids))])
+        
+        # Check for convergence (if centroids do not change)
+        if np.all([np.allclose(new, old) for new, old in zip(new_centroids, centroids)]):
+            break
+        centroids = new_centroids
+
+    # Assign labels to query points based on nearest centroid
+    labels = []
+    for q in query:
+        distances = [dist_func(list(map(int, q[1])), centroid) for centroid in centroids]
+        nearest_centroid_idx = np.argmin(distances)
+        labels.append(nearest_centroid_idx)
+    
+    return labels
+
 
 def read_data(file_name):
     
@@ -123,7 +167,8 @@ def show(file_name,mode):
             
 def main():
     # show('mnist_train.csv','pixels')
-    print(knn(read_data("mnist_train.csv"), read_data("mnist_valid.csv"), "euclidean"))
+    # print(knn(read_data("mnist_train.csv"), read_data("mnist_valid.csv"), "euclidean"))
+    print(kmeans(read_data("mnist_train.csv"), read_data("mnist_valid.csv"), "euclidean"))
     # x = [1, 5,9, 4, 7]
     # y = [2,10,25,28, 20]
     # print(pearson_correlation(x, y ))
