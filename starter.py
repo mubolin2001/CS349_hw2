@@ -79,6 +79,7 @@ def knn(train,query,metri, K = 5, n_comp = 50):
         dist_func = euclidean
     else:
         dist_func = cosim
+   
     labels = []
     for idx in range(len(train)):
         train[idx] = [int(train[idx][0]), [int(item) for item in train[idx][1]]]
