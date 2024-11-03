@@ -57,7 +57,10 @@ def pearson_correlation(a, b):
     denominator_y = math.sqrt(denominator_y)
     denominator_x = math.sqrt(denominator_x)
     denominator = denominator_y * denominator_x
-    dist = numerator / denominator
+    try:
+        dist = numerator / denominator
+    except ZeroDivisionError:
+        dist = 999
     return dist
 
 '''
@@ -222,6 +225,12 @@ def load_data(file_path):
 train_a = load_data('train_a.txt')
 train_b = load_data('train_b.txt')
 train_c = load_data('train_c.txt')
+test_a = load_data('test_a.txt')
+test_b = load_data('test_b.txt')
+test_c = load_data('test_c.txt')
+valid_a = load_data('valid_a.txt')
+valid_b = load_data('valid_b.txt')
+valid_c = load_data('valid_c.txt')
 movieLens = load_data('movielens.txt')
 # Add other datasets as needed
 
@@ -247,13 +256,74 @@ def get_top_k_similar_users(target_user, other_users, k, metric='cosine'):
                 sim = euclidean(target_ratings, other_ratings)
             elif metric == 'pearson':
                 sim = pearson_correlation(target_ratings, other_ratings)
-            similarities.append((user_id, sim))
+            try:
+                similarities.append((user_id, sim))
+            except UnboundLocalError:
+                similarities.append((user_id,0))
     
     # Sort by similarity and select top k
     similarities.sort(key=lambda x: x[1], reverse=True)
     return similarities[:k]
 
-def recommend_movies(target_user_id, other_users, top_k_users, threshold=4):
+def d_get_top_k_similar_users(target_user, other_users, k, metric='cosine'):
+    target_user = target_user.copy()
+    other_users = other_users.copy()
+    similarities = []
+    all_occupations = list(other_users.groupby('occupation').groups.keys())
+
+    #Normalize dataset
+    other_users['occupation'] = other_users['occupation'].apply(lambda x: all_occupations.index(x)/len(other_users))
+    other_users['age'] = other_users['age'].apply(lambda x: x/len(other_users))
+    other_users['rating'] = other_users['rating'].apply(lambda x: x/len(other_users))
+    other_users['gender'] = other_users['gender'].apply(lambda x: 1/len(other_users) if x == "M" else 2/len(other_users))
+
+    target_user['occupation'] = target_user['occupation'].apply(lambda x: all_occupations.index(x)/len(other_users))
+    target_user['age'] = target_user['age'].apply(lambda x: x/len(other_users))
+    target_user['rating'] = target_user['rating'].apply(lambda x: x/len(other_users))
+    target_user['gender'] = target_user['gender'].apply(lambda x: 1/len(other_users) if x == "M" else 2/len(other_users))
+
+    target_user_ratings_dict = dict(zip(target_user['movie_id'], np.array(target_user['rating'])))
+    target_occupation = target_user.loc[0]['occupation']
+    target_age = target_user.loc[0]['age']
+    target_gender = target_user.loc[0]['gender']
+    
+
+
+    for user_id, other_user in other_users.groupby(['user_id', 'occupation', 'gender', 'age']):
+        _, other_occupation, other_gender, other_age = user_id
+        other_vector = [other_occupation,other_age,other_gender]
+        target_vector = [target_occupation, target_age, target_gender]
+        other_user_ratings_dict = dict(zip(other_user['movie_id'], other_user['rating']))
+        
+        # Find common movies
+        common_movies = set(target_user_ratings_dict.keys()).intersection(other_user_ratings_dict.keys())
+        
+        if common_movies:
+            # Extract ratings for common movies
+            target_vector += [target_user_ratings_dict[movie] for movie in common_movies]
+            other_vector += [other_user_ratings_dict[movie] for movie in common_movies]
+            
+            # Calculate similarity based on the selected metric
+            if metric == 'cosine':
+                sim = cosim(target_vector, other_vector)
+            elif metric == 'euclidean':
+                sim = euclidean(target_vector, other_vector)
+            elif metric == 'pearson':
+                sim = pearson_correlation(target_vector, other_vector)
+
+            try:
+                similarities.append((user_id[0], sim))
+            except UnboundLocalError:
+                similarities.append((user_id[0], 0))
+
+        
+    
+    # Sort by similarity and select top k
+    similarities.sort(key=lambda x: x[1], reverse=True)
+    return similarities[:k]
+   
+
+def recommend_movies(other_users, top_k_users, threshold = 4):
     recommendations = {}
     
     # Get ratings for similar users
@@ -265,16 +335,60 @@ def recommend_movies(target_user_id, other_users, top_k_users, threshold=4):
             # Only recommend highly-rated movies
             if rating >= threshold:
                 if movie_id not in recommendations:
-                    recommendations[movie_id] = {'name': movie_name, 'score': 0}
-                
-                # Accumulate the score based on the ratings from similar users
-                recommendations[movie_id]['score'] += rating
+                    recommendations[movie_id] = {'name': movie_name, 'score': []}
+                        
+                            # Accumulate the score based on the ratings from similar users
+                            # ZW: Changed this to average rating of the similar users
+                recommendations[movie_id]['score'] += [rating]
+            
     
     # Sort recommendations by the accumulated score from top_k similar users
-    recommended_movies = sorted(recommendations.items(), key=lambda x: x[1]['score'], reverse=True)
-    
+    recommended_movies = dict(sorted(recommendations.items(), key=lambda x: x[1]['score'], reverse=True))
+
     # Return the list of movie names and scores
-    return [(movie_data['name'], movie_data['score']) for _, movie_data in recommended_movies]
+    #return [(movie_data['name'], int(np.rint(np.array(movie_data['score']).mean()))) for _, movie_data in recommended_movies]
+    return recommended_movies
+
+
+
+def evaluate(train_set, test_set, other_users, k, mode = "mean", metric = "cosine", demographic = True, threshold = 4):
+    if demographic == True:
+        top_k_users = d_get_top_k_similar_users(train_set, other_users, k=k, metric=metric)
+    else:
+        top_k_users = get_top_k_similar_users(train_set, other_users, k=k, metric=metric)
+    recommendations = recommend_movies(other_users, top_k_users, threshold)
+    test_set_movie_ids = set(test_set['movie_id'])
+    ratings = []
+
+    for _ in test_set_movie_ids:
+        if _ in recommendations:
+            if mode == "mean":
+                rating = np.rint(np.array(recommendations[_]['score']).mean()).astype(int)
+            if mode == "max":
+                rating = np.rint(np.array(recommendations[_]['score']).max()).astype(int)
+            if mode == "min":
+                rating = np.rint(np.array(recommendations[_]['score']).min()).astype(int)
+            target_rating = test_set[test_set['movie_id'] == _]['rating'].values[0]
+            ratings += [(recommendations[_]['name'], rating, target_rating)]
+
+    ratings.sort(key = lambda x:x[1], reverse=True)
+    TP = 0
+    FP = 0
+    FN = 0
+    for _ in ratings:
+        if _[1]>=4 & _[2]>=4:
+            TP += 1
+        if _[1]>=4 & _[2]<4:
+            FP += 1
+        if _[1]<4 & _[2]>=4:
+            FN += 1
+  
+    precision = TP/(TP+FP)
+    recall = TP/(TP+FN)  
+    f1 = (2*precision*recall)/(precision+recall)
+    return (precision, recall, f1, ratings)
+
+    
 
 
 def main():
@@ -293,18 +407,22 @@ def main():
     # Load training, validation, and test data
     
     # Load target user and other users
-    target_user = train_b  # Replace 405 with desired user_id
-    other_users = train_c
+    target_user = train_a  # Replace 405 with desired user_id
+    other_users = movieLens
     # Get top K similar users
-    top_k_users = get_top_k_similar_users(target_user, other_users, k=10, metric='cosine')
-    
+    #top_k_users = d_get_top_k_similar_users(target_user, other_users, k=5, metric='cosine')
+
     # Get movie recommendations
-    recommendations = recommend_movies(405, other_users, top_k_users)
+    #recommendations = recommend_movies(other_users, top_k_users, threshold=1)
     
     # Print recommendations
-    print("Recommended movies for user 405:")
-    for movie_name, score in recommendations:
-        print(f"Movie name: {movie_name}, Score: {score}")
+    #print("Recommended movies for user 405:")
+    #for movie_name, score in recommendations:
+        #print(f"Movie name: {movie_name}, Score: {score}")
+    precision, recall, f1, ratings = evaluate(train_a, test_a, movieLens, k = 5,  mode = "max", demographic= True, metric="pearson", threshold = 4)
+    print("Precision = ", precision, "Recall = ", recall, "F1 = ", f1)
+    print(ratings)
+
 if __name__ == "__main__":
     main()
     
