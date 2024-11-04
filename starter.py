@@ -115,43 +115,51 @@ labels should be ignored in the training set
 metric is a string specifying either "euclidean" or "cosim".  
 All hyper-parameters should be hard-coded in the algorithm.
 '''
-def kmeans(train, query, metric, num_clusters=5, max_iterations=100):
-    # Select distance function based on metric
+def preprocess_data(data, n_components=50):
+    pca = PCA(n_components=n_components)
+    reduced_data = pca.fit_transform(data)
+    normalized_data = normalize(reduced_data, norm='l2')
+    return normalized_data
+
+def kmeans(train, query, metric='euclidean', num_clusters=10, max_iterations=100, tol=1e-4):
     if metric.lower() == "euclidean":
         dist_func = euclidean
     else:
         dist_func = cosim
 
-    # Initialize centroids randomly from the training data
     train_data = np.array([list(map(int, t[1])) for t in train])
+    train_data = preprocess_data(train_data)  # Apply PCA and normalization
+
     centroids = train_data[np.random.choice(len(train_data), num_clusters, replace=False)]
     
     for _ in range(max_iterations):
-        # Step 1: Assign each query point to the nearest centroid
         clusters = [[] for _ in range(num_clusters)]
         for point in train_data:
             distances = [dist_func(point, centroid) for centroid in centroids]
             nearest_centroid_idx = np.argmin(distances)
             clusters[nearest_centroid_idx].append(point)
         
-        # Step 2: Update centroids by calculating the mean of assigned points
         new_centroids = []
         for cluster in clusters:
-            if cluster:  # Avoid empty clusters
+            if cluster:  
                 new_centroid = np.mean(cluster, axis=0)
                 new_centroids.append(new_centroid)
             else:
-                new_centroids.append(centroids[np.random.choice(len(centroids))])
+                all_distances = np.array([np.min([dist_func(point, c) for c in centroids]) for point in train_data])
+                farthest_point = train_data[np.argmax(all_distances)]
+                new_centroids.append(farthest_point)
         
-        # Check for convergence (if centroids do not change)
-        if np.all([np.allclose(new, old) for new, old in zip(new_centroids, centroids)]):
+        centroid_shifts = [np.linalg.norm(new - old) for new, old in zip(new_centroids, centroids)]
+        if np.all(np.array(centroid_shifts) < tol):
             break
         centroids = new_centroids
 
-    # Assign labels to query points based on nearest centroid
+    query_data = np.array([list(map(int, q[1])) for q in query])
+    query_data = preprocess_data(query_data) 
+
     labels = []
-    for q in query:
-        distances = [dist_func(list(map(int, q[1])), centroid) for centroid in centroids]
+    for q in query_data:
+        distances = [dist_func(q, centroid) for centroid in centroids]
         nearest_centroid_idx = np.argmin(distances)
         labels.append(nearest_centroid_idx)
 
@@ -396,8 +404,8 @@ def main():
 
     # show('mnist_train.csv','pixels')
     # print(knn(read_data("mnist_train.csv"), read_data("mnist_valid.csv"), "euclidean"))
-    # labels=kmeans(read_data("mnist_train.csv"), read_data("mnist_test.csv"), "euclidean")
-    # print("K-means cluster assignments:", labels)
+    labels=kmeans(read_data("mnist_train.csv"), read_data("mnist_test.csv"), "euclidean")
+    print("K-means clsuster assignments:", labels)
 
     # x = [1, 5,9, 4, 7]
     # y = [2,10,25,28, 20]
@@ -419,9 +427,9 @@ def main():
     #print("Recommended movies for user 405:")
     #for movie_name, score in recommendations:
         #print(f"Movie name: {movie_name}, Score: {score}")
-    precision, recall, f1, ratings = evaluate(train_a, test_a, movieLens, k = 5,  mode = "max", demographic= True, metric="pearson", threshold = 4)
-    print("Precision = ", precision, "Recall = ", recall, "F1 = ", f1)
-    print(ratings)
+    # precision, recall, f1, ratings = evaluate(train_a, test_a, movieLens, k = 5,  mode = "max", demographic= True, metric="pearson", threshold = 4)
+    # print("Precision = ", precision, "Recall = ", recall, "F1 = ", f1)
+    # print(ratings)
 
 if __name__ == "__main__":
     main()
