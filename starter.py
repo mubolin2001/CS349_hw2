@@ -168,6 +168,8 @@ def kmeans(train, query, metric, num_clusters=10, max_iterations=100):
 
     # Assign labels to query points based on nearest centroid
     labels = []
+    predicted_labels = []
+    true_labels = []
     for centroid in centroids:
         dist = []
         for _ in train_data:
@@ -181,10 +183,12 @@ def kmeans(train, query, metric, num_clusters=10, max_iterations=100):
         distances = [(dist_func(list(map(int, q[1])), centroid)) for centroid in centroids]
         idx = distances.index(min(distances))
         label = labels[idx]
-        if q[0] == label:
-            T+=1
-   
-    return T/total
+        predicted_labels += [label]
+        true_labels += [q[0]]
+
+    
+    return predicted_labels, true_labels
+    
 
 
 '''
