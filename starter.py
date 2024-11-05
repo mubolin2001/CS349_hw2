@@ -133,7 +133,7 @@ labels should be ignored in the training set
 metric is a string specifying either "euclidean" or "cosim".  
 All hyper-parameters should be hard-coded in the algorithm.
 '''
-def kmeans(train, query, metric, num_clusters=5, max_iterations=100):
+def kmeans(train, query, metric, num_clusters=10, max_iterations=100):
     # Select distance function based on metric
     if metric.lower() == "euclidean":
         dist_func = euclidean
@@ -141,16 +141,16 @@ def kmeans(train, query, metric, num_clusters=5, max_iterations=100):
         dist_func = cosim
 
     # Initialize centroids randomly from the training data
-    train_data = np.array([list(map(int, t[1])) for t in train])
-    centroids = train_data[np.random.choice(len(train_data), num_clusters, replace=False)]
-    
+    train_data = [(list(map(int, t[1]))) for t in train]
+    centroids = random.sample(train_data, num_clusters)
+
     for _ in range(max_iterations):
         # Step 1: Assign each query point to the nearest centroid
         clusters = [[] for _ in range(num_clusters)]
         for point in train_data:
             distances = [dist_func(point, centroid) for centroid in centroids]
-            nearest_centroid_idx = np.argmin(distances)
-            clusters[nearest_centroid_idx].append(point)
+            nearest_idx = list(distances).index(min(distances))
+            clusters[nearest_idx].append(point)
         
         # Step 2: Update centroids by calculating the mean of assigned points
         new_centroids = []
@@ -168,12 +168,28 @@ def kmeans(train, query, metric, num_clusters=5, max_iterations=100):
 
     # Assign labels to query points based on nearest centroid
     labels = []
-    for q in query:
-        distances = [dist_func(list(map(int, q[1])), centroid) for centroid in centroids]
-        nearest_centroid_idx = np.argmin(distances)
-        labels.append(nearest_centroid_idx)
+    for centroid in centroids:
+        dist = []
+        print("Centroid", centroid)
+        for _ in train_data:
+            dist += [dist_func(centroid, _)]
+        print("Dist", dist)
+        print("Dist length", len(dist))
+        train_index = dist.index(min(dist))
+        print("Train index", train_index)
+        labels += [train[train_index][0]]
 
-    return labels
+    print(labels)
+    T = 0
+    total = len(query)
+    for q in query:
+        distances = [(dist_func(list(map(int, q[1])), centroid)) for centroid in centroids]
+        idx = distances.index(min(distances))
+        label = labels[idx]
+        if q[0] == label:
+            T+=1
+   
+    return T/total
 
 
 '''
