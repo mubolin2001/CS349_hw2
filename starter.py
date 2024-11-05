@@ -170,16 +170,11 @@ def kmeans(train, query, metric, num_clusters=10, max_iterations=100):
     labels = []
     for centroid in centroids:
         dist = []
-        print("Centroid", centroid)
         for _ in train_data:
             dist += [dist_func(centroid, _)]
-        print("Dist", dist)
-        print("Dist length", len(dist))
         train_index = dist.index(min(dist))
-        print("Train index", train_index)
         labels += [train[train_index][0]]
 
-    print(labels)
     T = 0
     total = len(query)
     for q in query:
