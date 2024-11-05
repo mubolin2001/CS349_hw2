@@ -60,7 +60,7 @@ def pearson_correlation(a, b):
     denominator = denominator_y * denominator_x
     try:
         dist = numerator / denominator
-    except ZeroDivisionError:
+    except RuntimeWarning:
         dist = 999
     return dist
 
