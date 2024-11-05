@@ -20,10 +20,12 @@ def euclidean(a,b):
     if len(a) != len(b):
         raise ValueError("Both vectors must have the same dimension")
     dist = 0
-    for dimension in range(len(a)):
-       dist += (b[dimension] - a[dimension]) ** 2
-    dist = math.sqrt(dist)
-
+    a = np.array(a)
+    b = np.array(b) 
+    dist = (a-b)**2
+    dist = np.sum(dist)
+    dist = np.sqrt(dist)
+  
     return(dist)
         
 '''
@@ -32,15 +34,12 @@ returns Cosine Similarity between vectors and b
 def cosim(a,b):
     if len(a) != len(b):
         raise ValueError("Both vectors must have the same dimension")
-    dot_product = 0
-    magnitude_a = 0
-    magnitude_b = 0
-    for dimension in range(len(a)):
-        dot_product += a[dimension] * b[dimension]
-        magnitude_a += a[dimension] ** 2
-        magnitude_b += b[dimension] ** 2
-    magnitude_a = math.sqrt(magnitude_a)
-    magnitude_b = math.sqrt(magnitude_b)
+    a, b = np.array(a), np.array(b)
+    dot_product = sum(a*b)
+    magnitude_a = np.sqrt(sum(a**2))
+    magnitude_b = np.sqrt(sum(b**2))
+  
+
     dist = dot_product / magnitude_b / magnitude_a
     return(dist)
 
@@ -48,18 +47,16 @@ def cosim(a,b):
 return pearson correlations of  a and b.
 '''
 def pearson_correlation(a, b):
+    a, b = np.array(a), np.array(b)
     n = len(a)
-    mean_a = sum(a) / n
-    mean_b = sum(b) / n
-    numerator = 0
-    denominator_x = 0
-    denominator_y = 0
-    for i in range(len(a)):
-        numerator += (a[i] - mean_a) * (b[i] - mean_b)
-        denominator_x += (a[i] - mean_a) ** 2
-        denominator_y += (b[i] - mean_b) ** 2
-    denominator_y = math.sqrt(denominator_y)
-    denominator_x = math.sqrt(denominator_x)
+    mean_a = np.mean(a)
+    mean_b = np.mean(b)
+    numerator = np.sum((a - mean_a)*(b - mean_b))
+    denominator_x = np.sum((a - mean_a)**2)
+    denominator_y = np.sum((b - mean_b)**2)
+    
+    denominator_y = np.sqrt(denominator_y)
+    denominator_x = np.sqrt(denominator_x)
     denominator = denominator_y * denominator_x
     try:
         dist = numerator / denominator
